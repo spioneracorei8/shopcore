@@ -1,0 +1,32 @@
+version: '3.8'
+name: shopcore
+services:
+  shopcore-mongo:
+    container_name: 'shopcore-mongo'
+    image: 'mongo:latest'
+
+    ports: 
+      - 9041:27017
+
+    volumes:
+      - shopcore_volume:/data/db
+
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: username
+      MONGO_INITDB_ROOT_PASSWORD: password
+
+  shopcore-mongoui:
+    container_name: 'shopcore-mongoui'
+    image: mongo-express:latest
+    ports:
+      - 9040:8081
+    environment:
+      ME_CONFIG_BASICAUTH_USERNAME: username
+      ME_CONFIG_BASICAUTH_PASSWORD: password
+      ME_CONFIG_MONGODB_URL: mongodb://username:password@shopcore-mongo:27017/
+
+    depends_on:
+      - shopcore-mongo
+
+volumes:
+  shopcore_volume: 
