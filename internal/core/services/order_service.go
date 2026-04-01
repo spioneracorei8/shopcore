@@ -69,18 +69,10 @@ func (u *orderUsecase) UpdateOrderById(ctx context.Context, id *bson.ObjectID, o
 	order.Id = id
 	order.SetUpdatedAt()
 
-	for _, item := range order.OrderItems {
-		product, err := u.productUs.FetchProductById(ctx, item.ProductId)
-		if err != nil {
-			return nil, err
-		}
-		product.StockQty -= item.Qty
-		u.productUs.UpdateProductById(ctx, item.ProductId, product)
-	}
-
 	if err := u.orderRepo.UpdateOrderById(ctx, id, order); err != nil {
 		return nil, err
 	}
+
 	return u.orderRepo.FetchOrderById(ctx, id)
 }
 

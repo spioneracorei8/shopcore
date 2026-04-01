@@ -5,3 +5,7 @@ go get go.mongodb.org/mongo-driver/v2/mongo
 go get -u github.com/rs/zerolog/log
 
 go get github.com/go-playground/validator/v10
+
+go get github.com/stretchr/testify
+
+go get github.com/testcontainers/testcontainers-go/modules/mongodb

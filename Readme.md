@@ -17,6 +17,7 @@ ShopCore provides a robust foundation for e-commerce platforms with comprehensiv
 | **Validation** | go-playground/validator v10 |
 | **Serialization** | MessagePack |
 | **Containerization** | Docker & Docker Compose |
+| **Testing** | testify, testcontainers-go |
 
 ## Architecture
 
@@ -106,9 +107,14 @@ shopcore/
 │   │   └── outbound/
 │   │       └── mongodb/         # MongoDB repositories
 │   │           ├── customer_repository.go
+│   │           ├── customer_repository_test.go
 │   │           ├── product_repository.go
+│   │           ├── product_repository_test.go
 │   │           ├── order_repository.go
-│   │           └── run_number_repository.go
+│   │           ├── order_repository_test.go
+│   │           ├── run_number_repository.go
+│   │           ├── run_number_repository_test.go
+│   │           └── repository_test_helper_test.go
 │   │
 │   ├── app/
 │   │   └── app.go               # Application wiring
@@ -135,9 +141,13 @@ shopcore/
 │       │
 │       └── services/           # Use case implementations
 │           ├── customer_service.go
+│           ├── customer_service_test.go
 │           ├── product_service.go
+│           ├── product_service_test.go
 │           ├── order_service.go
-│           └── run_number_service.go
+│           ├── order_service_test.go
+│           ├── run_number_service.go
+│           └── run_number_service_test.go
 │
 ├── config/
 │   ├── env.go                  # Environment configuration
@@ -216,18 +226,6 @@ shopcore/
    go run cmd/api/main.go
    ```
 
-3. **Access services:**
-   - API: `http://localhost:3333`
-   - MongoDB Express: `http://localhost:9040`
-
-### Configuration
-
-Environment variables (with defaults):
-```bash
-APP_PORT=3333
-MONGO_DB_URI=mongodb://username:password@localhost:9041/
-```
-
 ## Design Patterns
 
 - **Hexagonal Architecture**: Clean separation between core business logic and external adapters
@@ -238,9 +236,71 @@ MONGO_DB_URI=mongodb://username:password@localhost:9041/
 
 ## Testing
 
+### Test Layers
+
+ShopCore implements unit tests at two layers following hexagonal architecture:
+
+#### Usecase/Service Layer Tests
+Tests use **mock repositories** (via testify/mock) to verify business logic in isolation. Each service is tested with mocked outbound ports, covering:
+
+- Success paths for all CRUD operations
+- Error propagation from repository layer
+- Business rule validation (e.g., stock deduction on order)
+
+#### Repository Layer Tests
+Tests use **testcontainers-go** to spin up real MongoDB containers for each test, providing:
+
+- True integration-level verification
+- Isolated test databases (each test gets its own DB via `t.Name()`)
+- Real MongoDB query behavior validation
+- Soft-delete filtering verification
+
+### Running Tests
+
 ```bash
-go test ./...
+# Run all tests
+make test
 ```
+
+### What is testcontainers-go?
+
+[testcontainers-go](https://github.com/testcontainers/testcontainers-go) is a Go library for running throwaway Docker containers during automated tests. It provides a programmatic API to spin up, configure, and tear down containerized dependencies like databases, message queues, and caches.
+
+**Why use testcontainers?**
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Mock DB** | Fast, no infrastructure | Doesn't test real queries |
+| **Shared DB** | Real queries | Test pollution, flaky tests |
+| **testcontainers** | Real queries, isolated, reproducible | Slower, requires Docker |
+
+**How it works in this project:**
+
+```go
+func setupTestDB(t *testing.T) (*mongo.Database, func()) {
+    ctx := context.Background()
+
+    // Spin up a fresh MongoDB 7 container
+    mongoContainer, err := mongodb.Run(ctx, "mongo:7")
+
+    // Get the connection string
+    uri, _ := mongoContainer.ConnectionString(ctx)
+
+    // Connect and get an isolated database
+    client, _ := mongo.Connect(options.Client().ApplyURI(uri))
+    db := client.Database(t.Name()) // unique DB per test
+
+    // Return cleanup function
+    cleanup := func() {
+        client.Disconnect(ctx)
+        mongoContainer.Terminate(ctx)
+    }
+
+    return db, cleanup
+}
+```
+
+Each test function gets its own MongoDB container with a unique database name, ensuring complete isolation. Containers are automatically terminated when tests complete.
 
 ## License
 
